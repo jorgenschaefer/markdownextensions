@@ -31,7 +31,7 @@ class CiteExtension(Extension):
         md.registerExtension(self)
         self.citations = CitationList()
         md.inlinePatterns.add('cite', InlineCitations(self), "_end")
-        md.treeprocessors.add('cite', AddCSS(), '_begin')
+        # md.treeprocessors.add('cite', AddCSS(), '_begin')
 
     def reset(self):
         self.citations = CitationList()
@@ -61,7 +61,7 @@ class AddCSS(Treeprocessor):
   }
 
   .cite__footnote:hover .cite__tooltip {
-    font-size: 120%;
+    font-size: 150%;
     display: block;
     position: absolute;
     left: 1em;
@@ -69,7 +69,7 @@ class AddCSS(Treeprocessor):
     z-index: 99;
     background: white;
     margin: 0;
-    padding: 0.2em 0.5em;
+    padding: 0.5em 1em;
     width: 30em;
     border: 1px solid #AAA;
   }
@@ -86,7 +86,7 @@ class InlineCitations(Pattern):
             return self.bibliography()
 
         cit = self.extension.citations
-        info = cit.use(m.group(2))
+        info = cit.use(m.group(2).replace("\n", " "))
 
         fn = etree.Element("span")
         fn.attrib["id"] = info["citeid"]
@@ -190,7 +190,7 @@ class CitationList(object):
 
 
 class Citation(object):
-    REFTEX_RX = re.compile("([^,0-9]+)(?: ([0-9-]+))?(?:, (.*))?")
+    REFTEX_RX = re.compile("([^,0-9]+) ([0-9-]+)(?:, (.*))?")
 
     def __init__(self, entry):
         self.entry = entry
@@ -204,9 +204,12 @@ class Citation(object):
         self.title = entry.title()
 
     def matches(self, reftext):
+        if reftext == self.title:
+            return True
+
         m = self.REFTEX_RX.match(reftext)
         if not m:
-            raise RuntimeError("Bad reftext {}".format(repr(reftext)))
+            return False
 
         authors = m.group(1)
         date = m.group(2)
@@ -231,9 +234,13 @@ class Citation(object):
                                            citeid=self.next_citeid)
         self.next_citeid += 1
         self.citeids.append(citeid)
+        pages = self.extract_pages(reftext)
+        if pages:
+            html = self.html + " " + pages + "."
+        else:
+            html = self.html
         return {'fnnum': str(self.fnnum),
-                'html': u"{}, {}.".format(self.html.rstrip("."),
-                                          self.extract_pages(reftext)),
+                'html': html,
                 'citeid': citeid,
                 'bibid': self.bibid}
 
@@ -246,9 +253,10 @@ class Citation(object):
 
     def extract_pages(self, reftext):
         m = self.REFTEX_RX.match(reftext)
-        if not m:
-            raise RuntimeError("Bad reftext {}".format(repr(reftext)))
-        return m.group(3)
+        if m:
+            return m.group(3)
+        else:
+            return None
 
 
 class Entry(object):
